@@ -18,6 +18,12 @@
     --warn: #b45309;
     --warn-soft: #fdf0dd;
     --error: #b3261e;
+    --sky: #bcd8f0;
+    --cloud-white: #ffffff;
+    --cloud-grey: #aab6c2;
+    --cloud-dark: #5d6976;
+    --sun: #f2b632;
+    --rain: #3a74b0;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -32,6 +38,12 @@
       --warn: #f5b25c;
       --warn-soft: #3a2a14;
       --error: #ff8a80;
+      --sky: #22364b;
+      --cloud-white: #d9e1e9;
+      --cloud-grey: #8b98a6;
+      --cloud-dark: #3f4a56;
+      --sun: #f2c14e;
+      --rain: #7db4ef;
       color-scheme: dark;
     }
   }
@@ -47,6 +59,12 @@
     --warn: #f5b25c;
     --warn-soft: #3a2a14;
     --error: #ff8a80;
+    --sky: #22364b;
+    --cloud-white: #d9e1e9;
+    --cloud-grey: #8b98a6;
+    --cloud-dark: #3f4a56;
+    --sun: #f2c14e;
+    --rain: #7db4ef;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -92,7 +110,7 @@
   #groups { display: grid; gap: 20px; }
   .group { display: grid; gap: 10px; }
   .group-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
   .cloud {
     font: inherit;
     color: inherit;
@@ -110,6 +128,25 @@
   .cloud[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
   .cloud strong { font-size: 1rem; }
   .cloud span { color: var(--muted); font-size: .88rem; }
+  .cloud { padding: 0; overflow: hidden; align-content: start; }
+  .cloud .art { display: block; width: 100%; height: auto; aspect-ratio: 120 / 72; max-width: 100%; }
+  .cloud-text { display: grid; gap: 2px; padding: 10px 14px 12px; }
+  .cloud[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+  .d-sky { fill: var(--sky); }
+  .d-white { fill: var(--cloud-white); }
+  .d-grey { fill: var(--cloud-grey); }
+  .d-dark { fill: var(--cloud-dark); }
+  .d-sheet { fill: var(--cloud-grey); opacity: .85; }
+  .d-veil { fill: var(--cloud-white); opacity: .45; }
+  .d-sun { fill: var(--sun); }
+  .d-sun-dim { fill: var(--sun); opacity: .9; }
+  .d-halo { fill: none; stroke: var(--cloud-white); stroke-width: 2.5; }
+  .d-wisp { fill: none; stroke: var(--cloud-white); stroke-width: 3; stroke-linecap: round; }
+  .d-rain { fill: none; stroke: var(--rain); stroke-width: 2; stroke-linecap: round; }
+  .d-bolt { fill: none; stroke: var(--sun); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  #result .each { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+  .clear { justify-self: start; font: inherit; font-size: .9rem; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .note { color: var(--muted); font-size: .8rem; margin: 0; }
 </style>
 </head>
@@ -117,7 +154,7 @@
 <main>
   <header>
     <h1>Cloud Weather Guide</h1>
-    <p class="sub">Pick the clouds that look like your sky and see what weather to expect today.</p>
+    <p class="sub">Pick every cloud type you can see in the sky, and find out what weather to expect today.</p>
   </header>
 
   <section class="panel" id="photo" hidden>
@@ -127,12 +164,12 @@
         <input type="file" id="photo-input" accept="image/*">
       </label>
       <img id="photo-preview" alt="Your sky photo" hidden>
-      <p id="photo-status">Claude will look at the photo and pick the closest cloud type.</p>
+      <p id="photo-status">Claude will look at the photo and pick the cloud types it can see.</p>
     </div>
   </section>
 
   <section class="panel" id="result" aria-live="polite">
-    <p class="why">Choose a cloud type below to see the forecast.</p>
+    
   </section>
 
   <div id="groups"></div>
@@ -141,28 +178,37 @@
 </main>
 
 <script>
+// level: how much weather each cloud signals, used for the overall outlook when several are picked.
 const CLOUDS = [
-  { id: "cirrus", name: "Cirrus", height: "High", looks: "Thin, wispy white streaks, like brush strokes or horses' tails.",
+  { id: "cirrus", name: "Cirrus", height: "High", level: 0, looks: "Thin, wispy white streaks, like brush strokes or horses' tails.",
     expect: "Fair weather for now. Lots of cirrus thickening across the sky can mean rain or a change in the weather within a day." },
-  { id: "cirrostratus", name: "Cirrostratus", height: "High", looks: "A thin, milky veil over the whole sky, often with a ring (halo) around the sun or moon.",
+  { id: "cirrostratus", name: "Cirrostratus", height: "High", level: 2, looks: "A thin, milky veil over the whole sky, often with a ring (halo) around the sun or moon.",
     expect: "Rain or snow is likely within the next 12 to 24 hours as a weather front moves in." },
-  { id: "cirrocumulus", name: "Cirrocumulus", height: "High", looks: "Tiny white ripples or grains high up, like fish scales.",
+  { id: "cirrocumulus", name: "Cirrocumulus", height: "High", level: 0, looks: "Tiny white ripples or grains high up, like fish scales.",
     expect: "Fair but often cool weather. Can be an early sign the weather will change in a day or so." },
-  { id: "altocumulus", name: "Altocumulus", height: "Middle", looks: "Small white or grey puffy patches in rows or groups, bigger than cirrocumulus.",
+  { id: "altocumulus", name: "Altocumulus", height: "Middle", level: 1, looks: "Small white or grey puffy patches in rows or groups, bigger than cirrocumulus.",
     expect: "Usually settled for now. If you see them on a warm, humid morning, thunderstorms are possible later in the day." },
-  { id: "altostratus", name: "Altostratus", height: "Middle", looks: "A grey or blue-grey sheet. The sun looks dim, as if through frosted glass.",
+  { id: "altostratus", name: "Altostratus", height: "Middle", level: 2, looks: "A grey or blue-grey sheet. The sun looks dim, as if through frosted glass.",
     expect: "Rain or snow is likely later today, and it may last a while." },
-  { id: "nimbostratus", name: "Nimbostratus", height: "Low", looks: "A thick, dark grey layer that hides the sun completely, often with rain falling.",
+  { id: "nimbostratus", name: "Nimbostratus", height: "Low", level: 3, looks: "A thick, dark grey layer that hides the sun completely, often with rain falling.",
     expect: "Steady rain or snow for several hours. Bring an umbrella." },
-  { id: "stratus", name: "Stratus", height: "Low", looks: "A flat, featureless grey sheet low in the sky, like fog that isn't touching the ground.",
+  { id: "stratus", name: "Stratus", height: "Low", level: 1, looks: "A flat, featureless grey sheet low in the sky, like fog that isn't touching the ground.",
     expect: "Dull and overcast. Drizzle or light mist is possible, but no heavy rain." },
-  { id: "stratocumulus", name: "Stratocumulus", height: "Low", looks: "Lumpy grey and white patches or rolls with gaps of blue sky between them.",
+  { id: "stratocumulus", name: "Stratocumulus", height: "Low", level: 1, looks: "Lumpy grey and white patches or rolls with gaps of blue sky between them.",
     expect: "Mostly dry and cloudy. A little light drizzle at most." },
-  { id: "cumulus", name: "Cumulus", height: "Low", looks: "Puffy white clouds with flat bottoms, like cotton wool.",
+  { id: "cumulus", name: "Cumulus", height: "Low", level: 0, looks: "Puffy white clouds with flat bottoms, like cotton wool.",
     expect: "Fair weather. If they grow taller and darker through the afternoon, a shower is possible." },
-  { id: "cumulonimbus", name: "Cumulonimbus", height: "Very tall", looks: "Huge towering clouds with dark bases, sometimes with a flat anvil-shaped top.",
+  { id: "cumulonimbus", name: "Cumulonimbus", height: "Very tall", level: 4, looks: "Huge towering clouds with dark bases, sometimes with a flat anvil-shaped top.",
     expect: "Thunderstorms are likely soon: heavy rain, lightning, strong gusts and possibly hail.",
     alert: "Storm risk. Head indoors if you hear thunder." },
+];
+
+const OUTLOOK = [
+  "Fair weather for now.",
+  "Mostly dry and cloudy, with a chance of drizzle or a light shower.",
+  "Rain is likely later today or tomorrow.",
+  "Rain or snow now, lasting several hours.",
+  "Thunderstorms are likely soon.",
 ];
 
 const GROUPS = [
@@ -172,8 +218,72 @@ const GROUPS = [
   { label: "Storm clouds", heights: ["Very tall"] },
 ];
 
+// ---- Drawings (120 x 72 viewBox, colours come from the theme tokens) ----
+const SVG_NS = "http://www.w3.org/2000/svg";
+// A puffy cloud: a row of circles sitting on a flat base.
+function puff(cx, base, w, h, cls) {
+  const r = h * 0.55, n = Math.max(2, Math.round(w / (r * 1.3)));
+  let out = `<rect class="${cls}" x="${cx - w / 2}" y="${base - r}" width="${w}" height="${r}" rx="${r / 2}"/>`;
+  for (let i = 0; i < n; i++) {
+    const x = cx - w / 2 + r * 0.8 + (i * (w - r * 1.6)) / (n - 1);
+    const lift = i === 0 || i === n - 1 ? 0.25 : 0.55 + 0.25 * Math.sin(i * 2.1);
+    out += `<circle class="${cls}" cx="${x.toFixed(1)}" cy="${(base - r - h * lift + r * 0.6).toFixed(1)}" r="${(r * (i === 0 || i === n - 1 ? 0.8 : 1)).toFixed(1)}"/>`;
+  }
+  return out;
+}
+const rain = (x1, x2, y, len) => {
+  let out = "";
+  for (let x = x1; x <= x2; x += 9) out += `<line class="d-rain" x1="${x}" y1="${y}" x2="${x - 4}" y2="${y + len}"/>`;
+  return out;
+};
+const DRAWINGS = {
+  cirrus: `
+    <path class="d-wisp" d="M8 26 C30 14, 52 22, 70 12 S100 10, 112 4"/>
+    <path class="d-wisp" d="M14 44 C34 36, 50 42, 66 32 S92 28, 104 22"/>
+    <path class="d-wisp" d="M40 60 C56 54, 70 58, 84 50 S104 46, 114 42"/>`,
+  cirrostratus: `
+    <circle class="d-halo" cx="60" cy="34" r="22"/>
+    <circle class="d-sun" cx="60" cy="34" r="8"/>
+    <rect class="d-veil" x="0" y="0" width="120" height="72"/>`,
+  cirrocumulus: Array.from({ length: 5 }, (_, row) =>
+    Array.from({ length: 9 }, (_, col) =>
+      `<ellipse class="d-white" cx="${10 + col * 12.5 + (row % 2) * 6}" cy="${12 + row * 11}" rx="4.2" ry="2.6"/>`).join("")).join(""),
+  altocumulus: [0, 1, 2].map(row => [0, 1, 2, 3].map(col =>
+    puff(18 + col * 28 + (row % 2) * 10, 24 + row * 19, 20, 11, row === 1 ? "d-grey" : "d-white")).join("")).join(""),
+  altostratus: `
+    <circle class="d-sun-dim" cx="78" cy="30" r="10"/>
+    <rect class="d-sheet" x="0" y="8" width="120" height="50"/>`,
+  nimbostratus: `
+    <rect class="d-dark" x="0" y="0" width="120" height="38"/>
+    ${puff(30, 42, 60, 12, "d-dark")}${puff(88, 42, 64, 12, "d-dark")}
+    ${rain(10, 114, 46, 18)}`,
+  stratus: `<rect class="d-grey" x="0" y="34" width="120" height="22"/>`,
+  stratocumulus: `
+    ${puff(22, 52, 40, 18, "d-grey")}${puff(64, 54, 38, 20, "d-white")}${puff(104, 52, 36, 18, "d-grey")}`,
+  cumulus: `
+    <circle class="d-sun" cx="100" cy="14" r="8"/>
+    ${puff(36, 54, 44, 30, "d-white")}${puff(92, 50, 30, 20, "d-white")}`,
+  cumulonimbus: `
+    <path class="d-white" d="M18 22 Q60 8 104 18 L90 26 L34 26 Z"/>
+    <rect class="d-white" x="38" y="22" width="44" height="26"/>
+    ${puff(60, 54, 70, 20, "d-dark")}
+    <path class="d-bolt" d="M66 56 L58 66 L64 66 L58 72"/>
+    ${rain(34, 52, 58, 12)}${rain(76, 92, 58, 12)}`,
+};
+function drawing(id) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 120 72");
+  svg.setAttribute("class", "art");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = `<rect class="d-sky" x="0" y="0" width="120" height="72"/>${DRAWINGS[id]}`;
+  return svg;
+}
+
+// ---- Page ----
 const groupsEl = document.getElementById("groups");
 const result = document.getElementById("result");
+const selected = new Set();
+let photoNote = "";
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -191,24 +301,57 @@ for (const g of GROUPS) {
     btn.type = "button";
     btn.dataset.id = c.id;
     btn.setAttribute("aria-pressed", "false");
-    btn.append(el("strong", null, c.name), el("span", null, c.looks));
-    btn.addEventListener("click", () => show(c.id));
+    const text = el("div", "cloud-text");
+    text.append(el("strong", null, c.name), el("span", null, c.looks));
+    btn.append(drawing(c.id), text);
+    btn.addEventListener("click", () => {
+      selected.has(c.id) ? selected.delete(c.id) : selected.add(c.id);
+      photoNote = "";
+      render();
+    });
     grid.append(btn);
   }
   section.append(grid);
   groupsEl.append(section);
 }
 
-function show(id, fromPhoto) {
-  const c = CLOUDS.find(c => c.id === id);
-  document.querySelectorAll(".cloud").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+function render() {
+  document.querySelectorAll(".cloud").forEach(b => b.setAttribute("aria-pressed", String(selected.has(b.dataset.id))));
+  const picked = CLOUDS.filter(c => selected.has(c.id));
   result.replaceChildren();
-  result.append(el("h2", null, c.name), el("p", "also", `${c.height} cloud · ${c.looks}`));
-  if (c.alert) result.append(el("p", "alert", c.alert));
-  result.append(el("p", "expect", c.expect));
-  if (fromPhoto) result.append(el("p", "why", `From your photo: ${fromPhoto}`));
-  result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (!picked.length) {
+    result.append(el("p", "why", "Choose one or more cloud types below to see the forecast."));
+    return;
+  }
+
+  const alert = picked.find(c => c.alert)?.alert;
+  if (picked.length === 1) {
+    const c = picked[0];
+    result.append(el("h2", null, c.name), el("p", "also", `${c.height} cloud · ${c.looks}`));
+    if (alert) result.append(el("p", "alert", alert));
+    result.append(el("p", "expect", c.expect));
+  } else {
+    const top = Math.max(...picked.map(c => c.level));
+    const drivers = picked.filter(c => c.level === top).map(c => c.name).join(" and ");
+    result.append(el("h2", null, OUTLOOK[top]));
+    result.append(el("p", "also", `Overall outlook for ${picked.length} cloud types, led by ${drivers}.`));
+    if (alert) result.append(el("p", "alert", alert));
+    const list = el("ul", "each");
+    for (const c of picked) {
+      const li = el("li");
+      li.append(el("strong", null, c.name + ": "), document.createTextNode(c.expect));
+      list.append(li);
+    }
+    result.append(list);
+  }
+  if (photoNote) result.append(el("p", "why", `From your photo: ${photoNote}`));
+
+  const clear = el("button", "clear", "Clear selection");
+  clear.type = "button";
+  clear.addEventListener("click", () => { selected.clear(); photoNote = ""; render(); });
+  result.append(clear);
 }
+render();
 
 // Photo identification, only available when the page is opened through claude.ai.
 (async () => {
@@ -239,29 +382,33 @@ function show(id, fromPhoto) {
 
     const ids = CLOUDS.map(c => `${c.id} (${c.looks})`).join("\n");
     const prompt =
-      "The image is a photo someone took of the sky. Identify the main cloud type in it.\n" +
-      "Choose exactly one id from this list:\n" + ids + "\n" +
-      'Use "none" if there are no clouds or it is not a photo of the sky.\n' +
-      'Reply with JSON only: {"id": "<id or none>", "confidence": "high" | "medium" | "low", ' +
+      "The image is a photo someone took of the sky. Identify the cloud types you can clearly see in it.\n" +
+      "Use only ids from this list, most prominent first, at most three:\n" + ids + "\n" +
+      "Use an empty list if there are no clouds or it is not a photo of the sky.\n" +
+      'Reply with JSON only: {"ids": ["<id>", ...], "confidence": "high" | "medium" | "low", ' +
       '"reason": "<one short sentence on what you see>"}';
     try {
       const answer = await sample.json(prompt, { images: file });
-      const match = CLOUDS.find(c => c.id === answer?.id);
-      if (!match) {
-        setStatus("I couldn't see clouds in that photo. Try another one, or pick a type below.", true);
+      const matches = CLOUDS.filter(c => Array.isArray(answer?.ids) && answer.ids.includes(c.id));
+      if (!matches.length) {
+        setStatus("I couldn't see clouds in that photo. Try another one, or pick types below.", true);
         return;
       }
-      const sure = answer.confidence === "high" ? "" : " Not completely sure, so compare with the descriptions below.";
-      setStatus(`Looks like ${match.name}.${sure}`);
-      show(match.id, answer.reason || "");
+      const sure = answer.confidence === "high" ? "" : " Not completely sure, so compare with the drawings below.";
+      setStatus(`Looks like ${matches.map(c => c.name).join(" and ")}.${sure}`);
+      selected.clear();
+      matches.forEach(c => selected.add(c.id));
+      photoNote = answer.reason || "";
+      render();
+      result.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (e) {
       const messages = {
-        not_granted: "Photo checking needs your permission. You can still pick a cloud type below.",
+        not_granted: "Photo checking needs your permission. You can still pick cloud types below.",
         image_rejected: "That file couldn't be read. Try a JPEG or PNG photo.",
         rate_limited: "Too many photos checked just now. Wait a little and try again.",
         session_expired: "Please sign in to claude.ai again, then retry.",
       };
-      setStatus(messages[e?.code] || "Something went wrong checking the photo. Try again, or pick a type below.", true);
+      setStatus(messages[e?.code] || "Something went wrong checking the photo. Try again, or pick types below.", true);
       if (["sampling_disabled", "images_unavailable", "capability_disabled"].includes(e?.code)) {
         panel.hidden = true;
       }

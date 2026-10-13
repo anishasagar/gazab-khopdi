@@ -24,8 +24,8 @@ OpenStreetMap.
 
 ## Cloud Weather Guide
 
-`clouds.html` describes the ten main cloud types in plain language. Pick the
-one that matches your sky to see what weather to expect today. When the page
+`clouds.html` shows a drawing and a plain description of the ten main cloud
+types. Pick every type you can see to get an overall outlook for today. When the page
 is opened through its claude.ai link, you can also upload a sky photo and
 Claude picks the closest cloud type. Opened as a plain file, it shows the list
 only.
