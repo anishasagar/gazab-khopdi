@@ -21,3 +21,11 @@ nearest first, each with a link to see it on a map.
 It looks up the address and the dog parks on OpenStreetMap, so it needs an
 internet connection. A park only shows up if someone has added it to
 OpenStreetMap.
+
+## Cloud Weather Guide
+
+`clouds.html` describes the ten main cloud types in plain language. Pick the
+one that matches your sky to see what weather to expect today. When the page
+is opened through its claude.ai link, you can also upload a sky photo and
+Claude picks the closest cloud type. Opened as a plain file, it shows the list
+only.
