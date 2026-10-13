@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Star Sign Finder</title>
+<style>
+  :root {
+    --bg: #f6f3fb;
+    --card: #ffffff;
+    --text: #231b33;
+    --muted: #6b6280;
+    --accent: #6d3fd1;
+    --accent-soft: #ece4fb;
+    --border: #e2dbef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #120e1c;
+      --card: #1d1729;
+      --text: #efeaf8;
+      --muted: #a79fbb;
+      --accent: #b493ff;
+      --accent-soft: #2c2240;
+      --border: #332a47;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 560px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  label { display: grid; gap: 6px; font-size: .9rem; color: var(--muted); }
+  input {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 10px;
+    width: 100%;
+  }
+  button {
+    grid-column: 1 / -1;
+    font: inherit;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: 0;
+    border-radius: 8px;
+    padding: 11px;
+    cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { button { color: #120e1c; } }
+  @media (max-width: 420px) { form { grid-template-columns: 1fr; } }
+  #error { color: #c0392b; margin: 12px 0 0; min-height: 1.2em; }
+  #result {
+    margin-top: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  #result[hidden] { display: none; }
+  .sign { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+  .glyph {
+    font-size: 2.4rem;
+    width: 64px; height: 64px;
+    display: grid; place-items: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 50%;
+    flex: none;
+  }
+  .sign h2 { margin: 0; font-size: 1.5rem; }
+  .sign p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+  .day { font-weight: 600; color: var(--accent); margin: 0 0 6px; font-size: .9rem; }
+  .reading { margin: 0 0 18px; }
+  dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
+  dl div { background: var(--accent-soft); border-radius: 10px; padding: 10px; }
+  dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  dd { margin: 2px 0 0; font-weight: 600; }
+  .note { color: var(--muted); font-size: .8rem; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>✨ Star Sign Finder</h1>
+  <p class="sub">Enter your birthday to see your star sign and horoscope.</p>
+
+  <form id="form">
+    <label>Your birthday
+      <input type="date" id="birthday" required>
+    </label>
+    <label>Horoscope for
+      <input type="date" id="day" required>
+    </label>
+    <button type="submit">Show my horoscope</button>
+  </form>
+  <p id="error" role="alert"></p>
+
+  <section id="result" hidden aria-live="polite"></section>
+
+  <p class="note">Horoscopes are generated for fun. The same sign and day always give the same reading.</p>
+</main>
+
+<script>
+// Tropical zodiac. Each entry starts on [month, day]; the sign runs until the next one starts.
+const SIGNS = [
+  { name: "Capricorn",   glyph: "♑", start: [12, 22], range: "Dec 22 – Jan 19", element: "Earth", trait: "ambitious and patient" },
+  { name: "Aquarius",    glyph: "♒", start: [1, 20],  range: "Jan 20 – Feb 18", element: "Air",   trait: "original and independent" },
+  { name: "Pisces",      glyph: "♓", start: [2, 19],  range: "Feb 19 – Mar 20", element: "Water", trait: "intuitive and compassionate" },
+  { name: "Aries",       glyph: "♈", start: [3, 21],  range: "Mar 21 – Apr 19", element: "Fire",  trait: "bold and energetic" },
+  { name: "Taurus",      glyph: "♉", start: [4, 20],  range: "Apr 20 – May 20", element: "Earth", trait: "steady and loyal" },
+  { name: "Gemini",      glyph: "♊", start: [5, 21],  range: "May 21 – Jun 20", element: "Air",   trait: "curious and quick-witted" },
+  { name: "Cancer",      glyph: "♋", start: [6, 21],  range: "Jun 21 – Jul 22", element: "Water", trait: "caring and protective" },
+  { name: "Leo",         glyph: "♌", start: [7, 23],  range: "Jul 23 – Aug 22", element: "Fire",  trait: "warm and confident" },
+  { name: "Virgo",       glyph: "♍", start: [8, 23],  range: "Aug 23 – Sep 22", element: "Earth", trait: "thoughtful and precise" },
+  { name: "Libra",       glyph: "♎", start: [9, 23],  range: "Sep 23 – Oct 22", element: "Air",   trait: "fair-minded and charming" },
+  { name: "Scorpio",     glyph: "♏", start: [10, 23], range: "Oct 23 – Nov 21", element: "Water", trait: "passionate and determined" },
+  { name: "Sagittarius", glyph: "♐", start: [11, 22], range: "Nov 22 – Dec 21", element: "Fire",  trait: "adventurous and optimistic" },
+];
+
+function signFor(month, day) {
+  const md = month * 100 + day;
+  // Walk the signs in calendar order (Aquarius..Sagittarius); before Jan 20 or from Dec 22 it's Capricorn.
+  let found = SIGNS[0];
+  for (const s of SIGNS.slice(1)) {
+    if (md >= s.start[0] * 100 + s.start[1]) found = s;
+  }
+  if (md >= 1222) found = SIGNS[0];
+  return found;
+}
+
+const OPENERS = [
+  "The Moon lights up your sense of purpose today.",
+  "A quiet shift in the stars brings fresh perspective.",
+  "Venus is smiling on your connections today.",
+  "Mars gives you an extra push of momentum.",
+  "Mercury sharpens your words and your timing.",
+  "Jupiter widens your horizons in small but real ways.",
+  "Saturn asks you to slow down and build something solid.",
+  "The Sun puts you in the spotlight, gently.",
+];
+const FOCUS = [
+  "Say yes to the conversation you've been putting off; it will go better than you expect.",
+  "Small, steady steps on an old project will pay off sooner than you think.",
+  "Someone close to you could use your encouragement, and it will come back to you.",
+  "Trust your first instinct on a decision that has been circling your mind.",
+  "Make room for rest; your best idea arrives when you stop chasing it.",
+  "A chance message or meeting could open an unexpected door.",
+  "Clear one thing off your plate early and the rest of the day flows.",
+  "Lean into your curiosity; learning something new lifts your mood.",
+  "Money matters reward patience today, so sleep on any big purchase.",
+  "Be honest about what you need, kindly but clearly.",
+];
+const CLOSERS = [
+  "Evening favours time with people who make you laugh.",
+  "Let yourself enjoy a small treat tonight. You've earned it.",
+  "By sunset, things feel lighter than they did this morning.",
+  "End the day by writing down one thing that went right.",
+  "A walk outside will help you reset.",
+  "Keep your plans flexible; a nice surprise may turn up.",
+];
+const MOODS = ["Hopeful", "Playful", "Focused", "Calm", "Confident", "Romantic", "Curious", "Grounded"];
+const COLOURS = ["Violet", "Sea green", "Gold", "Coral", "Sky blue", "Rose", "Emerald", "Silver", "Amber"];
+
+// Small seeded PRNG so a given sign + day always produces the same reading.
+function seededRandom(seedText) {
+  let h = 2166136261;
+  for (const ch of seedText) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+const pick = (rand, list) => list[Math.floor(rand() * list.length)];
+
+function horoscope(sign, isoDay) {
+  const rand = seededRandom(sign.name + "|" + isoDay);
+  return {
+    text: `${pick(rand, OPENERS)} ${pick(rand, FOCUS)} ${pick(rand, CLOSERS)}`,
+    mood: pick(rand, MOODS),
+    colour: pick(rand, COLOURS),
+    number: 1 + Math.floor(rand() * 99),
+  };
+}
+
+function parseISO(value) {
+  const [y, m, d] = value.split("-").map(Number);
+  return { y, m, d };
+}
+
+function localISO(date) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+const form = document.getElementById("form");
+const birthdayInput = document.getElementById("birthday");
+const dayInput = document.getElementById("day");
+const result = document.getElementById("result");
+const error = document.getElementById("error");
+
+dayInput.value = localISO(new Date());
+birthdayInput.max = dayInput.value;
+
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  error.textContent = "";
+  if (!birthdayInput.value || !dayInput.value) {
+    error.textContent = "Please pick both dates.";
+    return;
+  }
+  const b = parseISO(birthdayInput.value);
+  const sign = signFor(b.m, b.d);
+  const h = horoscope(sign, dayInput.value);
+  const dayLabel = new Date(dayInput.value + "T12:00:00").toLocaleDateString(undefined, {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  result.innerHTML = `
+    <div class="sign">
+      <div class="glyph" aria-hidden="true">${sign.glyph}</div>
+      <div>
+        <h2>${sign.name}</h2>
+        <p>${sign.range} · ${sign.element} sign · ${sign.trait}</p>
+      </div>
+    </div>
+    <p class="day">${dayLabel}</p>
+    <p class="reading">${h.text}</p>
+    <dl>
+      <div><dt>Mood</dt><dd>${h.mood}</dd></div>
+      <div><dt>Lucky colour</dt><dd>${h.colour}</dd></div>
+      <div><dt>Lucky number</dt><dd>${h.number}</dd></div>
+    </dl>`;
+  result.hidden = false;
+});
+</script>
+</body>
+</html>
